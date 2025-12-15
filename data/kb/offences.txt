@@ -1,0 +1,30 @@
+1. Driving without licence — Person drives without possessing a valid driving licence.
+2. Driving below legal age — Person drives while under the legal minimum age for driving.
+3. Owner permitting driving without licence — Owner permits another to drive while disqualified.
+4. Driving unregistered vehicle — Driving vehicle not registered under law.
+5. Transport vehicle without fitness certificate — Transport vehicle operating without fitness certificate.
+6. Disobedience of traffic signs/signals or directions of police — Failure to obey mandatory traffic signs, signals or police directions.
+7. Leaving vehicle in dangerous condition — Vehicle left in a position causing danger, obstruction or undue inconvenience.
+8. Riding on running boards — Carrying persons on running boards or outside vehicle body.
+9. Obstruction of driver — Standing or placing items that hamper driver control.
+10. Stationary vehicle contravention — Allowing vehicle to remain stationary contrary to section 88 requirements.
+11. Carrying extra passengers on two-wheeler — Carrying more than one pillion passenger.
+12. Refusal to produce licence/registration/certificate/permit — Failing to produce documents on lawful demand.
+13. Driving while diseased/disabled — Driving while mentally/physically unfit to drive.
+14. Dangerous driving — Driving at such speed or manner dangerous to life or property.
+15. Driving under influence of drink or drugs — Driving intoxicated so incapable of proper control.
+16. Abetment of offences (99,100,101) — Abetting dangerous or intoxicated driving.
+17. Racing and trials of speed — Participating in speed trials or races in public place without written consent.
+18. Using vehicle in unsafe condition — Driving a vehicle with defects known or discoverable by ordinary care.
+19. Selling or altering vehicle unlawfully — Selling or altering vehicle so it would contravene vehicle construction rules.
+20. Using vehicle without permit — Using vehicle without required permit or contrary to permit conditions.
+21. Driving vehicle exceeding permissible weight — Exceeding unladen/laden/axle weight limits.
+22. Failure to stop after accident / failure to furnish information — Not stopping or not giving required information after accident.
+23. Taking vehicle without authority — Taking/using vehicle without owner’s consent.
+24. Unauthorized interference with vehicle — Entering/ tampering with a stationary vehicle’s mechanism without lawful authority.
+25. Disobedience of orders / obstruction / false information — Refusing lawful directions or giving false information.
+26. Contravention of rules relating to appliances — Carrying prohibited appliance on vehicle.
+27. General contraventions not otherwise specified — Any contravention punishable under general provision.
+28. Failure to comply with weighment/orders under weight regulations — Not complying with weighment or orders to reduce load.
+29. Failure to produce registration/fitness when required for transport vehicle — Not producing transport-specific documents upon demand.
+30. Not stopping at railway level crossing for transport vehicle — Failing required stop and walk-forward procedure for railway crossings.
