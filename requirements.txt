@@ -1,3 +1,4 @@
+streamlit
 pydantic>=2.0
 langchain
 langchain-openai
@@ -5,4 +6,7 @@ langchain-community
 faiss-cpu
 python-dotenv
 requests
+openai
+chromadb
+tiktoken
 huggingface
