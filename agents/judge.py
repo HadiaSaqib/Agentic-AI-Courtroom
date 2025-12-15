@@ -4,11 +4,10 @@ from models.pydantic_models import JudgementModel
 from rag.fact_witness import fact_witness_answer
 from database.logger import log_judgement
 
-
 class JudgeAgent:
     """
-    Judge evaluates prosecutor & defense arguments using structured rubric scoring
-    and produces a final JudgementModel.
+    Judge evaluates prosecutor & defense arguments using evidence(details) provided by case details and compares it with evidence_list
+    and returns a structured JudgementModel.
     """
 
     def __init__(self, name: str = "judge", llm=None):
@@ -16,7 +15,7 @@ class JudgeAgent:
         self.llm = llm
 
     # ----------------------------------
-    # Improved Rubric Scoring (0–100)
+    # Simple scoring logic (deterministic)
     # ----------------------------------
     def _score_arguments(
         self,
@@ -25,47 +24,18 @@ class JudgeAgent:
         evidence: List[Dict]
     ) -> Dict[str, float]:
 
-        # 1. Evidence Strength (quality & relevance)
-        evidence_strength = min(
-            sum(e.get("score", 0) for e in evidence) * 100,
-            100
-        )
+        evidence_score = min(sum(e.get("score", 0) for e in evidence) * 100, 100)
 
-        # 2. Prosecutor Legal Application
-        legal_application = 60
-        legal_keywords = [
-            "law", "section", "act", "rule",
-            "traffic", "penalty", "fine",
-            "violation", "offence"
-        ]
-        if any(k in prosecutor_text.lower() for k in legal_keywords):
-            legal_application += 25
-        legal_application = min(legal_application, 100)
-
-        # 3. Defense Effectiveness (rebuttal & doubt)
-        defense_effectiveness = 50
-        defense_keywords = [
-            "however", "no evidence", "not proven",
-            "reasonable doubt", "lack", "insufficient",
-            "no witness", "procedural error"
-        ]
-        if any(k in defense_text.lower() for k in defense_keywords):
-            defense_effectiveness += 30
-        defense_effectiveness = min(defense_effectiveness, 100)
-
-        # 4. Consistency with Case Facts
-        total_words = len(prosecutor_text.split()) + len(defense_text.split())
-        consistency = min(total_words / 4, 100)
-
-        return {
-            "evidence_strength": round(evidence_strength, 2),
-            "legal_application": round(legal_application, 2),
-            "defense_effectiveness": round(defense_effectiveness, 2),
-            "consistency": round(consistency, 2)
+        scores = {
+            "evidence_strength": round(evidence_score, 2),
+            "legal_reasoning": 80 if "law" in prosecutor_text.lower() else 60,
+            "counter_arguments": 70 if "however" in defense_text.lower() else 50,
+            "clarity": min(len(prosecutor_text.split()), 100)
         }
+        return scores
 
     # ----------------------------------
-    # Judge Deliberation (LLM reasoning)
+    # Judge deliberation
     # ----------------------------------
     def deliberate(
         self,
@@ -75,41 +45,42 @@ class JudgeAgent:
         defense_argument: str
     ) -> str:
         """
-        LLM generates reasoning but MUST respect final verdict.
+        LLM generates reasoning but MUST respect the given verdict
         """
 
         prompt = f"""
-You are a judge in a Pakistani traffic law courtroom.
+    You are a judge in a traffic law courtroom.
 
-RULES:
-- Verdict is FINAL and cannot be changed
-- Max 150 words
-- No repetition
-- Formal judicial tone
-- Mention applicable fine (PKR, less than 5000)
+    RULES:
+    - Verdict is FINAL and cannot be changed
+    - Max 150 words
+    - No repetition of arguments
+    - Be formal and concise
+    - Give fine if any in PKR and according to pakistan traffic rules 
+    -fine amount must be less than 5000
 
-FINAL VERDICT:
-{verdict}
+    FINAL VERDICT: {verdict}
 
-CASE FACTS:
-{case}
+    CASE FACTS:
+    {case}
 
-PROSECUTOR SUMMARY:
-{prosecutor_argument[:300]}
 
-DEFENSE SUMMARY:
-{defense_argument[:300]}
+    PROSECUTOR SUMMARY:
+    {prosecutor_argument[:300]}
 
-Provide legal reasoning and punishment (if applicable).
-"""
+    DEFENSE SUMMARY:
+    {defense_argument[:300]}
+
+    Provide legal reasoning and punishment (if applicable).
+    """
 
         if self.llm:
             return self.llm(prompt)
 
-        return f"The court finds: {verdict} based on the presented facts and evidence."
+        return f"The court finds: {verdict}."
 
     # ----------------------------------
-    # Full Evaluation → Structured Output
+    # Full evaluation → structured output
     # ----------------------------------
     def evaluate(
         self,
@@ -127,43 +98,31 @@ Provide legal reasoning and punishment (if applicable).
             evidence_list
         )
 
-        # Weighted Final Decision
-        final_score = (
-            scores["evidence_strength"] * 0.4 +
-            scores["legal_application"] * 0.3 +
-            scores["consistency"] * 0.2 -
-            scores["defense_effectiveness"] * 0.3
-        )
-
         verdict = (
             "Violation Confirmed"
-            if final_score >= 60
+            if scores["evidence_strength"] >= 60
             else "Violation Not Confirmed"
         )
 
         reasoning = self.deliberate(
-            verdict,
-            case,
-            prosecutor_argument,
-            defense_argument
+        verdict,
+        case,
+        prosecutor_argument,
+        defense_argument
         )
-
-        # Log judgement
         log_judgement(
             debate_id=debate_id,
             scores=scores,
             verdict=verdict
         )
 
+
         return JudgementModel(
             judgement_id=str(uuid.uuid4()),
             case_id="AUTO-CASE",
             verdict=verdict,
-            prosecution_score=round(
-                (scores["evidence_strength"] + scores["legal_application"]) / 2,
-                2
-            ),
-            defense_score=round(scores["defense_effectiveness"], 2),
+            prosecution_score=scores["evidence_strength"],
+            defense_score=100 - scores["evidence_strength"],
             rubric_scores=scores,
             reasoning=reasoning,
             case_facts=case,
