@@ -34,7 +34,6 @@ class JudgementModel(BaseModel):
     verdict: str
     prosecution_score: float
     defense_score: float
-    confidence:float
     rubric_scores: Dict[str, float]
     reasoning: str
     case_facts: str
@@ -42,11 +41,12 @@ class JudgementModel(BaseModel):
     hearing_log: List[Dict]
     timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
 
-    @validator("prosecution_score", "defense_score", "confidence")
+    @validator("prosecution_score", "defense_score")
     def score_range(cls, v):
         if not 0 <= v <= 100:
             raise ValueError("Score must be between 0 and 100")
         return v
+
 
 
 
