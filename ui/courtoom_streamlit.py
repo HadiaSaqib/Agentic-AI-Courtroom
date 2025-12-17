@@ -1,4 +1,4 @@
-# app.py - UPDATED FOR NEW JudgeAgent
+# app.py - FULL UPDATED VERSION
 import streamlit as st
 import sys
 import os
@@ -72,11 +72,12 @@ db_initialized = initialize_database()
 # ======================
 st.set_page_config(page_title="AI Traffic Court", page_icon="⚖️", layout="wide")
 
-# SESSION STATE
+# Initialize session state
 for key, default in {
     'evidence': [],
     'case_text': "",
-    'case_id': "",
+    'case_id': f"CASE-{uuid.uuid4().hex[:6].upper()}",
+    'offence': "speeding",
     'judgement': None,
     'debate_log': [],
     'rounds': 2,
@@ -112,36 +113,39 @@ with st.sidebar:
     st.session_state.rounds = st.slider("Rounds", 1, 3, st.session_state.rounds)
 
 # ======================
-# MAIN
+# MAIN CASE INPUT
 # ======================
 col1, col2 = st.columns([3, 2])
 
 with col1:
     st.header("📝 Case Details")
-    case_text = st.text_area("Case Facts", height=160, value=st.session_state.case_text)
-    st.session_state.case_text = case_text
-
-    case_id = st.text_input("Manual Case ID", value=st.session_state.case_id)
-    st.session_state.case_id = case_id
-
-    offence = st.text_input("Offence / Violation Type", value="speeding")
+    st.session_state.case_id = st.text_input(
+        "Case ID", value=st.session_state.case_id
+    )
+    st.session_state.offence = st.text_input(
+        "Offence type", value=st.session_state.offence
+    )
+    st.session_state.case_text = st.text_area(
+        "Case Facts", height=160, value=st.session_state.case_text
+    )
 
 with col2:
     st.header("⚖️ Court Control")
-    ready = all([lc_llm, DebatePipeline, case_text.strip(), case_id.strip()])
-    st.success("Ready" if ready else "Waiting")
+    ready = all([lc_llm, DebatePipeline, st.session_state.case_text.strip()])
+    st.success("✅ Ready" if ready else "⚠️ Waiting")
 
     if st.button("🚀 Start Court", disabled=not ready):
-        pipeline = DebatePipeline(llm=lc_llm, debate_id=case_id)
+        pipeline = DebatePipeline(llm=lc_llm, debate_id=st.session_state.case_id)
         for ev in st.session_state.evidence:
             pipeline.submit_evidence(ev)
 
         judgement = pipeline.run(
-            case_facts=case_text,
-            case_id=case_id,
-            offence=offence,
+            case_facts=st.session_state.case_text,
+            case_id=st.session_state.case_id,
+            offence=st.session_state.offence,
             rounds=st.session_state.rounds
         )
+
         st.session_state.judgement = judgement
         st.session_state.debate_log = pipeline.hearing_log
         st.rerun()
@@ -154,7 +158,10 @@ if st.session_state.judgement:
     st.markdown("---")
     st.header("⚖️ Final Verdict")
     speak_text(j.verdict, "Judge")
-    st.success(j.verdict)
+    if "Confirmed" in j.verdict or "Guilty" in j.verdict.upper():
+        st.error(j.verdict)
+    else:
+        st.success(j.verdict)
 
     st.subheader("Reasoning")
     st.write(j.reasoning)
@@ -164,13 +171,62 @@ if st.session_state.judgement:
     st.metric("Prosecution", j.prosecution_score)
     st.metric("Defense", j.defense_score)
 
-    st.subheader("📊 Analysis")
-    st.write("**Confidence / Final Score:**", j.rubric_scores.get("final_score", 0))
-    st.write("**Rubric Scores:**")
-    for k, v in j.rubric_scores.items():
-        st.write(f"{k}: {v}/100")
+    # ======================
+    # Tabs: Judgement, Debate, Analysis, Evidence
+    # ======================
+    tab1, tab2, tab3, tab4 = st.tabs(["📄 Judgement", "🗣️ Debate", "📊 Analysis", "🔍 Evidence"])
 
-    if st.button("🔄 New Case"):
-        for k in ['evidence', 'case_text', 'case_id', 'judgement', 'debate_log']:
-            st.session_state[k] = [] if k == 'evidence' else "" if k=='case_id' else None
+    with tab1:
+        st.subheader("Judge's Reasoning")
+        st.write(j.reasoning)
+        st.subheader("Case Facts")
+        st.write(j.case_facts)
+        st.subheader("Case Info")
+        st.write(f"Case ID: {st.session_state.case_id}")
+        st.write(f"Offence: {st.session_state.offence}")
+
+    with tab2:
+        if st.session_state.debate_log:
+            st.subheader("Debate Transcript")
+            for turn in st.session_state.debate_log:
+                if turn['agent'] == 'prosecutor':
+                    st.markdown("##### 👨‍⚖️ Prosecutor")
+                    st.info(turn['text'])
+                    speak_text(turn['text'], "Prosecutor")
+                else:
+                    st.markdown("##### 🛡️ Defense")
+                    st.success(turn['text'])
+                    speak_text(turn['text'], "Defense Lawyer")
+                st.markdown("---")
+        else:
+            st.info("No debate transcript available")
+
+    with tab3:
+        st.subheader("Rubric & Confidence")
+        if hasattr(j, 'rubric_scores'):
+            for k, v in j.rubric_scores.items():
+                st.write(f"**{k.replace('_', ' ').title()}:** {v:.1f}/100")
+                st.progress(v/100)
+        confidence = j.rubric_scores.get("final_score", 0)
+        st.metric("Court Confidence", f"{confidence:.1f}%")
+
+    with tab4:
+        if hasattr(j, 'evidence_considered') and j.evidence_considered:
+            st.subheader("Evidence Considered")
+            for i, ev in enumerate(j.evidence_considered, 1):
+                st.write(f"**Evidence #{i}**")
+                st.write(f"*Relevance Score: {ev.get('score', 0):.2f}*")
+                st.write(ev.get('text', 'No text'))
+                st.markdown("---")
+        else:
+            st.info("No evidence available")
+
+    # ======================
+    # New case button
+    # ======================
+    if st.button("🔄 Start New Case"):
+        for k in ['evidence', 'case_text', 'judgement', 'debate_log']:
+            st.session_state[k] = [] if k == 'evidence' else None
+        st.session_state.case_id = f"CASE-{uuid.uuid4().hex[:6].upper()}"
+        st.session_state.offence = "speeding"
         st.rerun()
