@@ -8,7 +8,7 @@ from database.logger import log_judgement
 class JudgeAgent:
     """
     Judge evaluates prosecutor & defense arguments using structured rubric scoring
-    and produces a final JudgementModel.
+    and produces a final JudgementModel with possible benefit of doubt.
     """
 
     def __init__(self, name: str = "judge", llm=None):
@@ -22,17 +22,15 @@ class JudgeAgent:
         self,
         prosecutor_text: str,
         defense_text: str,
-        evidence: List[Dict]
+        evidence: List[Dict],
+        case_facts: str
     ) -> Dict[str, float]:
 
-        # 1. Evidence Strength (quality & relevance)
-        evidence_strength = min(
-            sum(e.get("score", 0) for e in evidence) * 100,
-            100
-        )
+        # 1. Evidence Strength
+        evidence_strength = min(sum(e.get("score", 0) for e in evidence) * 100, 100)
 
         # 2. Prosecutor Legal Application
-        legal_application = 60
+        legal_application = 50
         legal_keywords = [
             "law", "section", "act", "rule",
             "traffic", "penalty", "fine",
@@ -42,7 +40,7 @@ class JudgeAgent:
             legal_application += 25
         legal_application = min(legal_application, 100)
 
-        # 3. Defense Effectiveness (rebuttal & doubt)
+        # 3. Defense Effectiveness
         defense_effectiveness = 50
         defense_keywords = [
             "however", "no evidence", "not proven",
@@ -50,18 +48,29 @@ class JudgeAgent:
             "no witness", "procedural error"
         ]
         if any(k in defense_text.lower() for k in defense_keywords):
-            defense_effectiveness += 30
+            defense_effectiveness += 20
         defense_effectiveness = min(defense_effectiveness, 100)
 
-        # 4. Consistency with Case Facts
-        total_words = len(prosecutor_text.split()) + len(defense_text.split())
-        consistency = min(total_words / 4, 100)
+        # 4. Consistency with Case Facts (keyword matching)
+        case_words = set(word.lower() for word in case_facts.split())
+        prosecutor_words = set(word.lower() for word in prosecutor_text.split())
+        defense_words = set(word.lower() for word in defense_text.split())
+
+        matches = len(case_words & (prosecutor_words | defense_words))
+        consistency = min((matches / len(case_words)) * 100, 100) if case_words else 50
+
+        # 5. Credibility of Evidence
+        credibility = 50
+        if evidence and any(e.get("verified", False) for e in evidence):
+            credibility += 20
+        credibility = min(credibility, 100)
 
         return {
             "evidence_strength": round(evidence_strength, 2),
             "legal_application": round(legal_application, 2),
             "defense_effectiveness": round(defense_effectiveness, 2),
-            "consistency": round(consistency, 2)
+            "consistency": round(consistency, 2),
+            "credibility": round(credibility, 2)
         }
 
     # ----------------------------------
@@ -124,22 +133,37 @@ Provide legal reasoning and punishment (if applicable).
         scores = self._score_arguments(
             prosecutor_argument,
             defense_argument,
-            evidence_list
+            evidence_list,
+            case
         )
 
-        # Weighted Final Decision
+        # Weighted Final Score
         final_score = (
-            scores["evidence_strength"] * 0.4 +
-            scores["legal_application"] * 0.3 +
-            scores["consistency"] * 0.2 -
-            scores["defense_effectiveness"] * 0.3
+            scores["evidence_strength"] * 0.35 +
+            scores["legal_application"] * 0.25 +
+            scores["consistency"] * 0.15 +
+            scores["credibility"] * 0.25 -
+            scores["defense_effectiveness"] * 0.2
         )
 
-        verdict = (
-            "Violation Confirmed"
-            if final_score >= 60
-            else "Violation Not Confirmed"
-        )
+        # Weighted prosecution score
+        prosecution_score = (scores["evidence_strength"] + scores["legal_application"]) / 2
+
+        # ----------------------------------
+        # Verdict Logic with thresholds & benefit of doubt
+        # ----------------------------------
+        benefit_of_doubt = False
+        if final_score >= 60:
+            verdict = "Violation Confirmed"
+        else:
+            # if prosecution score is strong but overall score < 60 → apply benefit of doubt
+            if prosecution_score >= 65 and scores["defense_effectiveness"] < 50:
+                verdict = "Violation Confirmed (Prosecution Strong, Minor Doubt)"
+            elif scores["defense_effectiveness"] >= 70:
+                verdict = "Violation Not Confirmed (Benefit of Doubt Applied)"
+                benefit_of_doubt = True
+            else:
+                verdict = "Violation Not Confirmed"
 
         reasoning = self.deliberate(
             verdict,
@@ -152,21 +176,20 @@ Provide legal reasoning and punishment (if applicable).
         log_judgement(
             debate_id=debate_id,
             scores=scores,
-            verdict=verdict
+            verdict=verdict,
+            benefit_of_doubt=benefit_of_doubt
         )
 
         return JudgementModel(
             judgement_id=str(uuid.uuid4()),
             case_id="AUTO-CASE",
             verdict=verdict,
-            prosecution_score=round(
-                (scores["evidence_strength"] + scores["legal_application"]) / 2,
-                2
-            ),
+            prosecution_score=round(prosecution_score, 2),
             defense_score=round(scores["defense_effectiveness"], 2),
             rubric_scores=scores,
             reasoning=reasoning,
             case_facts=case,
             evidence_considered=evidence_list,
-            hearing_log=hearing_log
+            hearing_log=hearing_log,
+            benefit_of_doubt=benefit_of_doubt
         )
