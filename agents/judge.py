@@ -148,20 +148,20 @@ Provide legal reasoning and punishment (if applicable).
 
         # Weighted prosecution score
         prosecution_score = (scores["evidence_strength"] + scores["legal_application"]) / 2
-
+        defense_score=round(scores["defense_effectiveness"], 2)
         # ----------------------------------
         # Verdict Logic with thresholds & benefit of doubt
         # ----------------------------------
-        benefit_of_doubt = False
-        if final_score >= 60:
+        
+        if final_score >= 60 and prosecution_score>=defense_score:
             verdict = "Violation Confirmed"
         else:
             # if prosecution score is strong but overall score < 60 → apply benefit of doubt
-            if prosecution_score >= 65 and scores["defense_effectiveness"] < 50:
+            if prosecution_score >= 65 and scores["defense_effectiveness"] <= 50:
                 verdict = "Violation Confirmed (Prosecution Strong, Minor Doubt)"
             elif scores["defense_effectiveness"] >= 70:
                 verdict = "Violation Not Confirmed (Benefit of Doubt Applied)"
-                benefit_of_doubt = True
+    
             else:
                 verdict = "Violation Not Confirmed"
 
@@ -177,7 +177,7 @@ Provide legal reasoning and punishment (if applicable).
             debate_id=debate_id,
             scores=scores,
             verdict=verdict,
-            benefit_of_doubt=benefit_of_doubt
+            
         )
 
         return JudgementModel(
@@ -191,5 +191,6 @@ Provide legal reasoning and punishment (if applicable).
             case_facts=case,
             evidence_considered=evidence_list,
             hearing_log=hearing_log,
-            benefit_of_doubt=benefit_of_doubt
+            
         )
+
