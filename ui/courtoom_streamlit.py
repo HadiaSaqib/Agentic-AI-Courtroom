@@ -327,7 +327,7 @@ if st.session_state.judgement:
         # 🔊 Judge speaks verdict
         speak_text(verdict, "Judge")
 
-        if "not" in verdict:
+        if "Not" in verdict:
             st.markdown(f"""
             <div style='
                 background: linear-gradient(135deg, #16a34a, #15803d);
@@ -469,6 +469,7 @@ with st.expander("🔧 Debug Information"):
     
     st.write("**System Path:**")
     st.write(sys.path[:5])  # First 5 paths
+
 
 
 
