@@ -96,10 +96,12 @@ RULES:
 - Max 150 words
 - No repetition
 - Formal judicial tone
-- Mention applicable fine (PKR, less than 5000)
+- Mention applicable fine from pakistan traffic rules(PKR, less than 5000)
+- must mention confidence explicitly
 
 FINAL VERDICT:
 {verdict}
+
 Confidence:
 {confidence}
 
@@ -113,12 +115,13 @@ DEFENSE SUMMARY:
 {defense_argument[:300]}
 
 Provide legal reasoning and punishment (if applicable).
+Mention confidence explicitly.
 """
 
         if self.llm:
             return self.llm(prompt)
 
-        return f"The court finds: {verdict} based on the presented facts and evidence."
+        return f"The court finds: {verdict} having {confidence}  based on the presented facts and evidence."
 
     # ----------------------------------
     # Full Evaluation → Structured Output
@@ -157,9 +160,9 @@ Provide legal reasoning and punishment (if applicable).
         # ----------------------------------
         
         if  prosecution_score>defense_score:
-            verdict = "Violation Confirmed"
+            verdict = "Violation  Confirmed"
         elif  prosecution_score<defense_score:
-            verdict = "Violation Confirmed"
+            verdict = "Violation Not Confirmed"
         else   verdict = "Benefit of doubt granted"
      
         confidence=final_score
@@ -192,6 +195,7 @@ Provide legal reasoning and punishment (if applicable).
             hearing_log=hearing_log,
             
         )
+
 
 
 
