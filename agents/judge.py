@@ -115,14 +115,14 @@ class JudgeAgent:
             "unreliable witness"
         ]
         if any(k in text for k in strong_defense_keywords):
-            base += 40
+            base += 20
 
         mitigation_keywords = [
             "first offense", "emergency",
             "medical", "leniency"
         ]
         if any(k in text for k in mitigation_keywords):
-            base += 20
+            base += 10
 
         return round(min(base, 100), 2)
 
@@ -251,3 +251,4 @@ Provide legal reasoning and lawful punishment from Pakistani traffic law.
             evidence_considered=evidence_list,
             hearing_log=hearing_log
         )
+
