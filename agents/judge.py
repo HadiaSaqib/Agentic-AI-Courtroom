@@ -1,169 +1,170 @@
-# agents/judge.py
 import uuid
 from typing import List, Dict
 from models.pydantic_models import JudgementModel
-from database.logger import log_judgement
 from rag.fact_witness import fact_witness_answer
+from database.logger import log_judgement
 
 
 class JudgeAgent:
     """
-    JudgeAgent evaluates prosecutor & defense arguments using
-    an advanced, explainable rubric-based scoring system.
-
-    DESIGN:
-    - Judge does NOT fetch new facts
-    - Judge MAY validate original laws (read-only) via RAG
-    - Verdict logic is deterministic
+    Judge evaluates prosecutor & defense arguments using structured rubric scoring
+    and produces a final JudgementModel.
     """
 
     def __init__(self, name: str = "judge", llm=None):
         self.name = name
         self.llm = llm
 
-    # --------------------------------------------------
-    # Utility
-    # --------------------------------------------------
-    def _tokenize(self, text: str) -> set:
-        return {w.lower().strip(".,") for w in text.split() if len(w) > 3}
+    # ----------------------------------
+    # Improved Rubric Scoring (0–100)
+    # ----------------------------------
+    def _score_arguments(
+        self,
+        prosecutor_text: str,
+        defense_text: str,
+        evidence: List[Dict]
+    ) -> Dict[str, float]:
 
-    # --------------------------------------------------
-    # LAW VALIDATION (Read-only RAG)
-    # --------------------------------------------------
-    def _validate_law(self, offence: str) -> Dict:
-        """Uses RAG ONLY to validate legal limits/sections."""
-        try:
-            return fact_witness_answer(
-                f"Pakistan traffic law section and maximum fine for {offence}"
-            ) or {}
-        except Exception:
-            return {}
+        # 1. Evidence Strength (quality & relevance)
+        evidence_strength = min(
+            sum(e.get("score", 0) for e in evidence) * 100,
+            100
+        )
 
-    # --------------------------------------------------
-    # Evidence Strength (0–100)
-    # --------------------------------------------------
-    def _calculate_evidence_strength(self, evidence: List[Dict]) -> float:
-        if not evidence:
-            return 0.0
-        credibility = sum(e.get("credibility", 0.5) for e in evidence)
-        relevance = sum(e.get("relevance", 0.5) for e in evidence)
-        count_bonus = min(len(evidence) * 5, 20)
-        score = ((credibility + relevance) * 10) + count_bonus
-        return round(min(score, 100), 2)
+        # 2. Prosecutor Legal Application
+        legal_application = 60
+        legal_keywords = [
+            "law", "section", "act", "rule",
+            "traffic", "penalty", "fine",
+            "violation", "offence"
+        ]
+        if any(k in prosecutor_text.lower() for k in legal_keywords):
+            legal_application += 25
+        legal_application = min(legal_application, 100)
 
-    # --------------------------------------------------
-    # Legal Application (0–100)
-    # --------------------------------------------------
-    def _calculate_legal_application(self, prosecutor_text: str, evidence: List[Dict]) -> float:
-        text = prosecutor_text.lower()
-        law_score = 30 if any(k in text for k in ["section", "act", "ordinance", "rule", "motor vehicle", "traffic law"]) else 10
-        reasoning_score = 30 if any(k in text for k in ["therefore", "hence", "thus", "as per", "violated", "liable"]) else 15
-        penalty_score = 0
-        if any(k in text for k in ["fine", "penalty", "punishment"]):
-            penalty_score = 15
-            if any(e.get("type") == "penalty" for e in evidence):
-                penalty_score = 25
-        procedure_score = 15 if any(k in text for k in ["challan", "traffic warden", "notice issued", "court summons"]) else 5
-        total = law_score + reasoning_score + penalty_score + procedure_score
-        return round(min(total, 100), 2)
+        # 3. Defense Effectiveness (rebuttal & doubt)
+        defense_effectiveness = 50
+        defense_keywords = [
+            "however", "no evidence", "not proven",
+            "reasonable doubt", "lack", "insufficient",
+            "no witness", "procedural error"
+        ]
+        if any(k in defense_text.lower() for k in defense_keywords):
+            defense_effectiveness += 30
+        defense_effectiveness = min(defense_effectiveness, 100)
 
-    # --------------------------------------------------
-    # Defense Effectiveness (0–100)
-    # --------------------------------------------------
-    def _calculate_defense_effectiveness(self, defense_text: str) -> float:
-        text = defense_text.lower()
-        base = 40
-        if any(k in text for k in ["reasonable doubt", "no evidence", "procedural error", "lack of proof", "unreliable witness"]):
-            base += 40
-        if any(k in text for k in ["first offense", "emergency", "medical", "leniency"]):
-            base += 20
-        return round(min(base, 100), 2)
+        # 4. Consistency with Case Facts
+        total_words = len(prosecutor_text.split()) + len(defense_text.split())
+        consistency = min(total_words / 4, 100)
 
-    # --------------------------------------------------
-    # Consistency with Case Facts (0–100)
-    # --------------------------------------------------
-    def _calculate_consistency(self, case_text: str, prosecutor_text: str, defense_text: str) -> float:
-        case_tokens = self._tokenize(case_text)
-        pros_tokens = self._tokenize(prosecutor_text)
-        def_tokens = self._tokenize(defense_text)
-        overlap_score = min(len(case_tokens & pros_tokens) * 4, 50)
-        defense_overlap = min(len(case_tokens & def_tokens) * 2, 20)
-        numeric_case = {w for w in case_text.split() if w.isdigit()}
-        numeric_args = {w for w in (prosecutor_text + defense_text).split() if w.isdigit()}
-        numeric_score = 20 if numeric_case & numeric_args else 0
-        contradiction_penalty = 15 if any(k in defense_text.lower() for k in ["wrong location", "different time", "incorrect facts"]) else 0
-        consistency = overlap_score + defense_overlap + numeric_score - contradiction_penalty
-        return round(min(max(consistency, 0), 100), 2)
-
-    # --------------------------------------------------
-    # Judge Deliberation (LLM explanation)
-    # --------------------------------------------------
-    def deliberate(self, verdict: str, case: str, prosecutor_argument: str, defense_argument: str, offence: str) -> str:
-        law_info = self._validate_law(offence)
-        max_fine = law_info.get("max_fine", 5000)
-        if not self.llm:
-            return f"The court upholds the verdict: {verdict}. The imposed fine shall not exceed PKR {max_fine}."
-        prompt = f"""
-You are a Pakistani traffic court judge.
-Rules:
-- Verdict is FINAL
-- Formal judicial tone
-- Under 150 words
-- Fine must not exceed PKR {max_fine}
-
-Verdict: {verdict}
-Case: {case}
-Prosecutor: {prosecutor_argument[:300]}
-Defense: {defense_argument[:300]}
-
-Provide legal reasoning and lawful punishment from Pakistani traffic law.
-"""
-        return self.llm(prompt)
-
-    # --------------------------------------------------
-    # Full Evaluation Pipeline
-    # --------------------------------------------------
-    def evaluate(self, debate_id: str, case: str, offence: str, prosecutor_argument: str,
-                 defense_argument: str, evidence_list: List[Dict], hearing_log: List[Dict],
-                 case_id: str) -> JudgementModel:
-
-        evidence_score = self._calculate_evidence_strength(evidence_list)
-        legal_score = self._calculate_legal_application(prosecutor_argument, evidence_list)
-        defense_score = self._calculate_defense_effectiveness(defense_argument)
-        consistency_score = self._calculate_consistency(case, prosecutor_argument, defense_argument)
-
-        final_score = (evidence_score * 0.35 +
-                       legal_score * 0.30 +
-                       consistency_score * 0.20 -
-                       defense_score * 0.25)
-
-        # Verdict logic
-        if final_score >= 60 and (evidence_score + legal_score)/2 > defense_score:
-            verdict = "Violation Confirmed"
-        elif final_score < 60 and (evidence_score + legal_score)/2 < defense_score:
-            verdict = "Violation Not Confirmed"
-        else:
-            verdict = "Benefit of Doubt Granted"
-
-        reasoning = self.deliberate(verdict, case, prosecutor_argument, defense_argument, offence)
-
-        rubric_scores = {
-            "evidence_strength": evidence_score,
-            "legal_application": legal_score,
-            "defense_effectiveness": defense_score,
-            "consistency": consistency_score,
-            "final_score": round(final_score, 2)
+        return {
+            "evidence_strength": round(evidence_strength, 2),
+            "legal_application": round(legal_application, 2),
+            "defense_effectiveness": round(defense_effectiveness, 2),
+            "consistency": round(consistency, 2)
         }
 
-        log_judgement(debate_id=debate_id, scores=rubric_scores, verdict=verdict)
+    # ----------------------------------
+    # Judge Deliberation (LLM reasoning)
+    # ----------------------------------
+    def deliberate(
+        self,
+        verdict: str,
+        case: str,
+        prosecutor_argument: str,
+        defense_argument: str
+    ) -> str:
+        """
+        LLM generates reasoning but MUST respect final verdict.
+        """
+
+        prompt = f"""
+You are a judge in a Pakistani traffic law courtroom.
+
+RULES:
+- Verdict is FINAL and cannot be changed
+- Max 150 words
+- No repetition
+- Formal judicial tone
+- Mention applicable fine (PKR, less than 5000)
+
+FINAL VERDICT:
+{verdict}
+
+CASE FACTS:
+{case}
+
+PROSECUTOR SUMMARY:
+{prosecutor_argument[:300]}
+
+DEFENSE SUMMARY:
+{defense_argument[:300]}
+
+Provide legal reasoning and punishment (if applicable).
+"""
+
+        if self.llm:
+            return self.llm(prompt)
+
+        return f"The court finds: {verdict} based on the presented facts and evidence."
+
+    # ----------------------------------
+    # Full Evaluation → Structured Output
+    # ----------------------------------
+    def evaluate(
+        self,
+        debate_id: str,
+        case: str,
+        prosecutor_argument: str,
+        defense_argument: str,
+        evidence_list: List[Dict],
+        hearing_log: List[Dict]
+    ) -> JudgementModel:
+
+        scores = self._score_arguments(
+            prosecutor_argument,
+            defense_argument,
+            evidence_list
+        )
+
+        # Weighted Final Decision
+        final_score = (
+            scores["evidence_strength"] * 0.4 +
+            scores["legal_application"] * 0.3 +
+            scores["consistency"] * 0.2 -
+            scores["defense_effectiveness"] * 0.3
+        )
+
+        verdict = (
+            "Violation Confirmed"
+            if final_score >= 60
+            else "Violation Not Confirmed"
+        )
+
+        reasoning = self.deliberate(
+            verdict,
+            case,
+            prosecutor_argument,
+            defense_argument
+        )
+
+        # Log judgement
+        log_judgement(
+            debate_id=debate_id,
+            scores=scores,
+            verdict=verdict
+        )
 
         return JudgementModel(
             judgement_id=str(uuid.uuid4()),
-            case_id=case_id,  # manual case id
+            case_id="AUTO-CASE",
             verdict=verdict,
-            prosecution_score=round((evidence_score + legal_score) / 2, 2),
-            defense_score=round(defense_score, 2),
-            rubric_scores=rubric_scores,
+            prosecution_score=round(
+                (scores["evidence_strength"] + scores["legal_application"]) / 2,
+                2
+            ),
+            defense_score=round(scores["defense_effectiveness"], 2),
+            rubric_scores=scores,
             reasoning=reasoning,
             case_facts=case,
             evidence_considered=evidence_list,
