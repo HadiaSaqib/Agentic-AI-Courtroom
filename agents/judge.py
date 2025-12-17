@@ -80,6 +80,7 @@ class JudgeAgent:
         self,
         verdict: str,
         case: str,
+        confidence:float,
         prosecutor_argument: str,
         defense_argument: str
     ) -> str:
@@ -91,7 +92,7 @@ class JudgeAgent:
 You are a judge in a Pakistani traffic law courtroom.
 
 RULES:
-- Verdict is FINAL and cannot be changed
+- Verdict and confidence are FINAL and cannot be changed
 - Max 150 words
 - No repetition
 - Formal judicial tone
@@ -109,7 +110,7 @@ PROSECUTOR SUMMARY:
 DEFENSE SUMMARY:
 {defense_argument[:300]}
 
-Provide legal reasoning and punishment (if applicable).
+Provide legal reasoning and punishment (if applicable) and write confidence of judgement{confidence}.
 """
 
         if self.llm:
@@ -126,7 +127,6 @@ Provide legal reasoning and punishment (if applicable).
         case: str,
         prosecutor_argument: str,
         defense_argument: str,
-        confidence:float,
         evidence_list: List[Dict],
         hearing_log: List[Dict]
     ) -> JudgementModel:
@@ -164,6 +164,7 @@ Provide legal reasoning and punishment (if applicable).
         reasoning = self.deliberate(
             verdict,
             case,
+            confidence,
             prosecutor_argument,
             defense_argument
         )
@@ -183,13 +184,13 @@ Provide legal reasoning and punishment (if applicable).
             prosecution_score=round(prosecution_score, 2),
             defense_score=round(scores["defense_effectiveness"], 2),
             rubric_scores=scores,
-            confidence=confidence,
             reasoning=reasoning,
             case_facts=case,
             evidence_considered=evidence_list,
             hearing_log=hearing_log,
             
         )
+
 
 
 
