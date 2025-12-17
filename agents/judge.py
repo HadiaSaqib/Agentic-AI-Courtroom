@@ -182,11 +182,13 @@ Provide legal reasoning and punishment (if applicable).
             prosecution_score=round(prosecution_score, 2),
             defense_score=round(scores["defense_effectiveness"], 2),
             rubric_scores=scores,
+            confidence=confidence
             reasoning=reasoning,
             case_facts=case,
             evidence_considered=evidence_list,
             hearing_log=hearing_log,
             
         )
+
 
 
