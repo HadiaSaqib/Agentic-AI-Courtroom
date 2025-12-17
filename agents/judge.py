@@ -100,6 +100,8 @@ RULES:
 
 FINAL VERDICT:
 {verdict}
+Confidence:
+{confidence}
 
 CASE FACTS:
 {case}
@@ -110,7 +112,7 @@ PROSECUTOR SUMMARY:
 DEFENSE SUMMARY:
 {defense_argument[:300]}
 
-Provide legal reasoning and punishment (if applicable) and write confidence of judgement{confidence}.
+Provide legal reasoning and punishment (if applicable).
 """
 
         if self.llm:
@@ -190,6 +192,7 @@ Provide legal reasoning and punishment (if applicable) and write confidence of j
             hearing_log=hearing_log,
             
         )
+
 
 
 
