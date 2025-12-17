@@ -1,11 +1,9 @@
-# app.py - COMPLETE WORKING VERSION (No changes required for updated Judge)
+# app.py - UPDATED FOR NEW JudgeAgent
 import streamlit as st
 import sys
 import os
 import uuid
 from datetime import datetime
-
-# 🔊 Voice support
 from gtts import gTTS
 import io
 
@@ -19,7 +17,7 @@ sys.path.append(os.path.join(current_dir, 'rag'))
 sys.path.append(os.path.join(current_dir, 'models'))
 
 # ======================
-# 🔊 TEXT TO SPEECH
+# TEXT TO SPEECH
 # ======================
 def speak_text(text: str, role: str):
     if not text or not st.session_state.get("voice_enabled", True):
@@ -74,9 +72,11 @@ db_initialized = initialize_database()
 # ======================
 st.set_page_config(page_title="AI Traffic Court", page_icon="⚖️", layout="wide")
 
+# SESSION STATE
 for key, default in {
     'evidence': [],
     'case_text': "",
+    'case_id': "",
     'judgement': None,
     'debate_log': [],
     'rounds': 2,
@@ -118,20 +118,30 @@ col1, col2 = st.columns([3, 2])
 
 with col1:
     st.header("📝 Case Details")
-    case_text = st.text_area("Case Facts", height=160)
+    case_text = st.text_area("Case Facts", height=160, value=st.session_state.case_text)
     st.session_state.case_text = case_text
+
+    case_id = st.text_input("Manual Case ID", value=st.session_state.case_id)
+    st.session_state.case_id = case_id
+
+    offence = st.text_input("Offence / Violation Type", value="speeding")
 
 with col2:
     st.header("⚖️ Court Control")
-    ready = all([lc_llm, DebatePipeline, case_text.strip()])
+    ready = all([lc_llm, DebatePipeline, case_text.strip(), case_id.strip()])
     st.success("Ready" if ready else "Waiting")
 
     if st.button("🚀 Start Court", disabled=not ready):
-        pipeline = DebatePipeline(llm=lc_llm)
+        pipeline = DebatePipeline(llm=lc_llm, debate_id=case_id)
         for ev in st.session_state.evidence:
             pipeline.submit_evidence(ev)
 
-        judgement = pipeline.run(case_facts=case_text, rounds=st.session_state.rounds)
+        judgement = pipeline.run(
+            case_facts=case_text,
+            case_id=case_id,
+            offence=offence,
+            rounds=st.session_state.rounds
+        )
         st.session_state.judgement = judgement
         st.session_state.debate_log = pipeline.hearing_log
         st.rerun()
@@ -154,11 +164,13 @@ if st.session_state.judgement:
     st.metric("Prosecution", j.prosecution_score)
     st.metric("Defense", j.defense_score)
 
-    st.subheader("Rubric")
+    st.subheader("📊 Analysis")
+    st.write("**Confidence / Final Score:**", j.rubric_scores.get("final_score", 0))
+    st.write("**Rubric Scores:**")
     for k, v in j.rubric_scores.items():
         st.write(f"{k}: {v}/100")
 
     if st.button("🔄 New Case"):
-        for k in ['evidence', 'case_text', 'judgement', 'debate_log']:
-            st.session_state[k] = [] if k == 'evidence' else None
+        for k in ['evidence', 'case_text', 'case_id', 'judgement', 'debate_log']:
+            st.session_state[k] = [] if k == 'evidence' else "" if k=='case_id' else None
         st.rerun()
