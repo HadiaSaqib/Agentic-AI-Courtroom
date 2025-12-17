@@ -35,7 +35,6 @@ class JudgementModel(BaseModel):
     prosecution_score: float
     defense_score: float
     rubric_scores: Dict[str, float]
-    confidence:float
     reasoning: str
     case_facts: str
     evidence_considered: List[Dict]
@@ -47,4 +46,5 @@ class JudgementModel(BaseModel):
         if not 0 <= v <= 100:
             raise ValueError("Score must be between 0 and 100")
         return v
+
 
