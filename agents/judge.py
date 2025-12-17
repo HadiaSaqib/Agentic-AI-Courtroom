@@ -126,6 +126,7 @@ Provide legal reasoning and punishment (if applicable).
         case: str,
         prosecutor_argument: str,
         defense_argument: str,
+        confidence:float,
         evidence_list: List[Dict],
         hearing_log: List[Dict]
     ) -> JudgementModel:
@@ -182,13 +183,14 @@ Provide legal reasoning and punishment (if applicable).
             prosecution_score=round(prosecution_score, 2),
             defense_score=round(scores["defense_effectiveness"], 2),
             rubric_scores=scores,
-            confidence=confidence
+            confidence=confidence,
             reasoning=reasoning,
             case_facts=case,
             evidence_considered=evidence_list,
             hearing_log=hearing_log,
             
         )
+
 
 
 
