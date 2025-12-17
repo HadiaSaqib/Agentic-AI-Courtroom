@@ -80,7 +80,7 @@ class JudgeAgent:
         self,
         verdict: str,
         case: str,
-        confidence:float,
+        confidence: float,
         prosecutor_argument: str,
         defense_argument: str
     ) -> str:
@@ -97,7 +97,7 @@ RULES:
 - No repetition
 - Formal judicial tone
 - Mention applicable fine from pakistan traffic rules(PKR, less than 5000)
-- must mention confidence explicitly
+- Must mention confidence explicitly
 
 FINAL VERDICT:
 {verdict}
@@ -121,7 +121,7 @@ Mention confidence explicitly.
         if self.llm:
             return self.llm(prompt)
 
-        return f"The court finds: {verdict} having {confidence}  based on the presented facts and evidence."
+        return f"The court finds: {verdict} with confidence {confidence} based on the presented facts and evidence."
 
     # ----------------------------------
     # Full Evaluation → Structured Output
@@ -154,18 +154,19 @@ Mention confidence explicitly.
 
         # Weighted prosecution score
         prosecution_score = (scores["evidence_strength"] + scores["legal_application"]) / 2
-        defense_score=round(scores["defense_effectiveness"], 2)
+        defense_score = scores["defense_effectiveness"]
+
         # ----------------------------------
-        # Verdict Logic with thresholds 
+        # Verdict Logic with thresholds
         # ----------------------------------
-        
-        if  prosecution_score>defense_score:
-            verdict = "Violation  Confirmed"
-        elif  prosecution_score<defense_score:
+        if prosecution_score > defense_score:
+            verdict = "Violation Confirmed"
+        elif prosecution_score < defense_score:
             verdict = "Violation Not Confirmed"
-        else   verdict = "Benefit of doubt granted"
-     
-        confidence=final_score
+        else:
+            verdict = "Benefit of doubt granted"
+
+        confidence = round(final_score, 2)
         reasoning = self.deliberate(
             verdict,
             case,
@@ -179,7 +180,6 @@ Mention confidence explicitly.
             debate_id=debate_id,
             scores=scores,
             verdict=verdict,
-            
         )
 
         return JudgementModel(
@@ -193,12 +193,4 @@ Mention confidence explicitly.
             case_facts=case,
             evidence_considered=evidence_list,
             hearing_log=hearing_log,
-            
         )
-
-
-
-
-
-
-
