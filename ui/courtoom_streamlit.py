@@ -320,7 +320,7 @@ if st.session_state.judgement:
     judgement = st.session_state.judgement
     
     # Verdict display
-    col_verdict, col_score1, col_score2 = st.columns([2, 1, 1])
+    col_verdict, col_score1, col_score2,col_score3 = st.columns([2, 1, 1,1])
     
     with col_verdict:
         verdict = str(judgement.verdict)
@@ -364,7 +364,8 @@ if st.session_state.judgement:
     
     with col_score2:
         st.metric("Defense Score", f"{judgement.defense_score:.1f}")
-    
+    with col_score3:
+        st.metric("Confidence", f"{judgement.confidence:.1f}")
     # Tabs for detailed view
     tab1, tab2, tab3, tab4 = st.tabs(["📄 Judgement", "🗣️ Debate", "📊 Analysis", "🔍 Evidence"])
     
@@ -469,3 +470,4 @@ with st.expander("🔧 Debug Information"):
     
     st.write("**System Path:**")
     st.write(sys.path[:5])  # First 5 paths
+
