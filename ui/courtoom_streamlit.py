@@ -247,7 +247,7 @@ with col1:
             st.error("RAG system not available")
 
 with col2:
-    st.header("🎮 Court Proceedings")
+    st.header("⚖️ Court Proceedings")
     
     # System readiness check
     system_ready = all([fact_witness_answer, lc_llm, DebatePipeline, case_text.strip()])
@@ -320,30 +320,14 @@ if st.session_state.judgement:
     judgement = st.session_state.judgement
     
     # Verdict display
-    col_verdict, col_score1, col_score2,col_score3 = st.columns([2, 1, 1, 1])
+    col_verdict, col_score1, col_score2= st.columns([2, 1, 1])
     
     with col_verdict:
         verdict = str(judgement.verdict)
         # 🔊 Judge speaks verdict
         speak_text(verdict, "Judge")
 
-        
-        if "Confirmed" in verdict or "Guilty" in verdict or "VIOLATION" in verdict.upper():
-            st.markdown(f"""
-            <div style='
-                background: linear-gradient(135deg, #dc2626, #991b1b);
-                color: white;
-                padding: 20px;
-                border-radius: 10px;
-                text-align: center;
-                font-size: 24px;
-                font-weight: bold;
-                margin: 10px 0;
-            '>
-            🔴 {verdict}
-            </div>
-            """, unsafe_allow_html=True)
-        elif "not" in verdict:
+        if "not" in verdict:
             st.markdown(f"""
             <div style='
                 background: linear-gradient(135deg, #16a34a, #15803d);
@@ -358,6 +342,22 @@ if st.session_state.judgement:
             🟢 {verdict}
             </div>
             """, unsafe_allow_html=True)
+        elif "Confirmed" in verdict or "Guilty" in verdict or "VIOLATION" in verdict.upper():
+            st.markdown(f"""
+            <div style='
+                background: linear-gradient(135deg, #dc2626, #991b1b);
+                color: white;
+                padding: 20px;
+                border-radius: 10px;
+                text-align: center;
+                font-size: 24px;
+                font-weight: bold;
+                margin: 10px 0;
+            '>
+            🔴 {verdict}
+            </div>
+            """, unsafe_allow_html=True)
+     
     
     with col_score1:
         st.metric("Prosecution Score", f"{judgement.prosecution_score:.1f}")
@@ -365,8 +365,6 @@ if st.session_state.judgement:
     with col_score2:
         st.metric("Defense Score", f"{judgement.defense_score:.1f}")
         
-    with col_score3:
-        st.metric("Confidence", f"{judgement.confidence:.1f}")
     # Tabs for detailed view
     tab1, tab2, tab3, tab4 = st.tabs(["📄 Judgement", "🗣️ Debate", "📊 Analysis", "🔍 Evidence"])
     
@@ -471,5 +469,6 @@ with st.expander("🔧 Debug Information"):
     
     st.write("**System Path:**")
     st.write(sys.path[:5])  # First 5 paths
+
 
 
